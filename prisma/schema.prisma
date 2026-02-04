@@ -1,0 +1,392 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider  = "postgresql"
+  url       = env("DATABASE_URL")
+  directUrl = env("DIRECT_URL")
+}
+
+// =============================================
+// Auth.js v5 Models
+// =============================================
+
+model Account {
+  id                String  @id @default(cuid())
+  userId            String
+  type              String
+  provider          String
+  providerAccountId String
+  refresh_token     String? @db.Text
+  access_token      String? @db.Text
+  expires_at        Int?
+  token_type        String?
+  scope             String?
+  id_token          String? @db.Text
+  session_state     String?
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([provider, providerAccountId])
+  @@index([userId])
+}
+
+model Session {
+  id           String   @id @default(cuid())
+  sessionToken String   @unique
+  userId       String
+  expires      DateTime
+  user         User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+}
+
+model VerificationToken {
+  identifier String
+  token      String   @unique
+  expires    DateTime
+
+  @@unique([identifier, token])
+}
+
+// =============================================
+// User (Business Owner)
+// =============================================
+
+model User {
+  id            String    @id @default(cuid())
+  name          String?
+  email         String?   @unique
+  emailVerified DateTime?
+  image         String?
+
+  // Business Info
+  businessName String?
+  slug         String?   @unique
+  timezone     String    @default("Asia/Seoul")
+
+  // License
+  licenseKey    String?       @unique
+  licenseStatus LicenseStatus @default(TRIAL)
+  licenseExpiry DateTime?
+
+  // Relations
+  accounts         Account[]
+  sessions         Session[]
+  schedules        Schedule[]
+  appointmentTypes AppointmentType[]
+  bookings         Booking[]
+  notifications    NotificationSetting[]
+  webhooks         Webhook[]
+  schedulePresets  SchedulePreset[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+enum LicenseStatus {
+  TRIAL
+  ACTIVE
+  EXPIRED
+  SUSPENDED
+}
+
+// =============================================
+// Schedule Presets
+// =============================================
+
+model SchedulePreset {
+  id     String @id @default(cuid())
+  userId String
+  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  name        String
+  weeklyHours Json
+
+  createdAt DateTime @default(now())
+
+  @@index([userId])
+}
+
+// =============================================
+// Schedule Settings
+// =============================================
+
+model Schedule {
+  id     String @id @default(cuid())
+  userId String
+  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  name      String  @default("기본 스케줄")
+  isDefault Boolean @default(false)
+
+  // Time Settings
+  slotDuration Int @default(30)
+  bufferBefore Int @default(0)
+  bufferAfter  Int @default(0)
+
+  // Booking Window
+  minNotice  Int @default(60)
+  maxAdvance Int @default(30)
+
+  // Capacity
+  maxCapacity Int @default(1)
+
+  // Cancellation Settings
+  allowCancellation Boolean @default(true)
+  cancelNotice      Int     @default(1440)
+  reopenOnCancel    Boolean @default(true)
+
+  // Auto Confirm Setting
+  autoConfirm Boolean @default(false)
+
+  // Relations
+  weeklyHours   WeeklyHours[]
+  dateOverrides DateOverride[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([userId])
+}
+
+model WeeklyHours {
+  id         String   @id @default(cuid())
+  scheduleId String
+  schedule   Schedule @relation(fields: [scheduleId], references: [id], onDelete: Cascade)
+
+  dayOfWeek Int
+  isEnabled Boolean @default(true)
+
+  timeSlots TimeSlot[]
+
+  @@unique([scheduleId, dayOfWeek])
+  @@index([scheduleId])
+}
+
+model TimeSlot {
+  id            String      @id @default(cuid())
+  weeklyHoursId String
+  weeklyHours   WeeklyHours @relation(fields: [weeklyHoursId], references: [id], onDelete: Cascade)
+
+  startTime String
+  endTime   String
+
+  @@index([weeklyHoursId])
+}
+
+model DateOverride {
+  id         String   @id @default(cuid())
+  scheduleId String
+  schedule   Schedule @relation(fields: [scheduleId], references: [id], onDelete: Cascade)
+
+  date        DateTime @db.Date
+  isAvailable Boolean  @default(false)
+
+  startTime String?
+  endTime   String?
+
+  @@unique([scheduleId, date])
+  @@index([scheduleId])
+}
+
+// =============================================
+// Appointment Types
+// =============================================
+
+model AppointmentType {
+  id     String @id @default(cuid())
+  userId String
+  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  name        String
+  description String?
+
+  // Duration (minutes)
+  duration    Int
+  minDuration Int?
+  maxDuration Int?
+
+  // Capacity Override
+  maxCapacity Int?
+
+  // Appearance
+  color String @default("#3B82F6")
+
+  // Required Fields
+  requirePhone Boolean @default(true)
+  requireEmail Boolean @default(false)
+  customFields Json?
+
+  isActive Boolean @default(true)
+
+  bookings Booking[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([userId])
+  @@index([isActive])
+}
+
+// =============================================
+// Bookings
+// =============================================
+
+model Booking {
+  id     String @id @default(cuid())
+  userId String
+  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  appointmentTypeId String
+  appointmentType   AppointmentType @relation(fields: [appointmentTypeId], references: [id])
+
+  // Guest Info
+  guestName  String
+  guestPhone String
+  guestEmail String?
+  customData Json?
+
+  // Time
+  startTime DateTime
+  endTime   DateTime
+  duration  Int
+
+  // Status
+  status BookingStatus @default(PENDING)
+
+  // Tokens
+  confirmToken String @unique @default(cuid())
+  cancelToken  String @unique @default(cuid())
+
+  // Notes
+  internalNote String?
+  guestNote    String?
+
+  // Notifications
+  notifications BookingNotification[]
+
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+  confirmedAt DateTime?
+  cancelledAt DateTime?
+  completedAt DateTime?
+
+  @@index([userId])
+  @@index([appointmentTypeId])
+  @@index([status])
+  @@index([startTime])
+  @@index([confirmToken])
+  @@index([cancelToken])
+}
+
+enum BookingStatus {
+  PENDING
+  CONFIRMED
+  CANCELLED
+  COMPLETED
+  NO_SHOW
+}
+
+// =============================================
+// Notifications
+// =============================================
+
+model BookingNotification {
+  id        String  @id @default(cuid())
+  bookingId String
+  booking   Booking @relation(fields: [bookingId], references: [id], onDelete: Cascade)
+
+  type    NotificationType
+  channel NotificationChannel
+  status  NotificationStatus
+
+  sentAt DateTime?
+  error  String?
+
+  createdAt DateTime @default(now())
+
+  @@index([bookingId])
+}
+
+enum NotificationType {
+  BOOKING_CREATED
+  BOOKING_CONFIRMED
+  BOOKING_CANCELLED
+  BOOKING_REMINDER
+}
+
+enum NotificationChannel {
+  KAKAO_ALIMTALK
+  DISCORD
+  WEBHOOK
+  EMAIL
+}
+
+enum NotificationStatus {
+  PENDING
+  SENT
+  FAILED
+}
+
+model NotificationSetting {
+  id     String @id @default(cuid())
+  userId String
+  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  channel   NotificationChannel
+  isEnabled Boolean             @default(true)
+  config    Json
+  events    NotificationType[]
+
+  @@unique([userId, channel])
+  @@index([userId])
+}
+
+// =============================================
+// Webhooks
+// =============================================
+
+model Webhook {
+  id     String @id @default(cuid())
+  userId String
+  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  name     String
+  url      String
+  secret   String
+  events   WebhookEvent[]
+  isActive Boolean        @default(true)
+
+  logs WebhookLog[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([userId])
+}
+
+enum WebhookEvent {
+  BOOKING_CREATED
+  BOOKING_CONFIRMED
+  BOOKING_CANCELLED
+  BOOKING_COMPLETED
+}
+
+model WebhookLog {
+  id        String  @id @default(cuid())
+  webhookId String
+  webhook   Webhook @relation(fields: [webhookId], references: [id], onDelete: Cascade)
+
+  event      WebhookEvent
+  payload    Json
+  statusCode Int?
+  response   String?
+  error      String?
+
+  sentAt DateTime @default(now())
+
+  @@index([webhookId])
+  @@index([sentAt])
+}

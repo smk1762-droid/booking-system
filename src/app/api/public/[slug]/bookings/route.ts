@@ -1,0 +1,195 @@
+import { NextResponse } from "next/server";
+import { prisma } from "@/lib/db";
+import { addMinutes } from "date-fns";
+import type { CustomField } from "@/types";
+
+// XSS 방지를 위한 문자열 sanitize
+function sanitizeString(str: string): string {
+  return str
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/"/g, "&quot;")
+    .replace(/'/g, "&#x27;");
+}
+
+// customData 유효성 검사
+function validateCustomData(
+  customFields: CustomField[] | null,
+  customData: Record<string, unknown> | null
+): { valid: boolean; error?: string; sanitized?: Record<string, string | boolean> } {
+  if (!customFields || customFields.length === 0) {
+    return { valid: true, sanitized: {} };
+  }
+
+  if (!customData) {
+    // 필수 필드가 있는지 확인
+    const requiredField = customFields.find((f) => f.required);
+    if (requiredField) {
+      return { valid: false, error: `${requiredField.label}은(는) 필수 항목입니다` };
+    }
+    return { valid: true, sanitized: {} };
+  }
+
+  const sanitized: Record<string, string | boolean> = {};
+
+  for (const field of customFields) {
+    const value = customData[field.id];
+
+    // 필수 필드 검사
+    if (field.required) {
+      if (field.type === "checkbox") {
+        if (value !== true) {
+          return { valid: false, error: `${field.label}은(는) 필수 항목입니다` };
+        }
+      } else if (!value || (typeof value === "string" && value.trim() === "")) {
+        return { valid: false, error: `${field.label}은(는) 필수 항목입니다` };
+      }
+    }
+
+    // 값이 있으면 타입 검사 및 sanitize
+    if (value !== undefined && value !== null && value !== "") {
+      if (field.type === "checkbox") {
+        if (typeof value !== "boolean") {
+          return { valid: false, error: `${field.label}의 값이 올바르지 않습니다` };
+        }
+        sanitized[field.id] = value;
+      } else {
+        if (typeof value !== "string") {
+          return { valid: false, error: `${field.label}의 값이 올바르지 않습니다` };
+        }
+        // 문자열 길이 제한 (최대 1000자)
+        if (value.length > 1000) {
+          return { valid: false, error: `${field.label}은(는) 1000자를 초과할 수 없습니다` };
+        }
+        sanitized[field.id] = sanitizeString(value.trim());
+      }
+    }
+  }
+
+  return { valid: true, sanitized };
+}
+
+export async function POST(request: Request, { params }: { params: Promise<{ slug: string }> }) {
+  const { slug } = await params;
+
+  try {
+    const body = await request.json();
+    const {
+      appointmentTypeId,
+      startTime,
+      duration,
+      guestName,
+      guestPhone,
+      guestEmail,
+      guestNote,
+      customData,
+    } = body;
+
+    // Validate required fields
+    if (!appointmentTypeId || !startTime || !guestName || !guestPhone) {
+      return NextResponse.json(
+        { error: "Missing required fields" },
+        { status: 400 }
+      );
+    }
+
+    const user = await prisma.user.findUnique({
+      where: { slug },
+      select: { id: true },
+    });
+
+    if (!user) {
+      return NextResponse.json({ error: "Business not found" }, { status: 404 });
+    }
+
+    // Get appointment type
+    const appointmentType = await prisma.appointmentType.findFirst({
+      where: { id: appointmentTypeId, userId: user.id, isActive: true },
+    });
+
+    if (!appointmentType) {
+      return NextResponse.json({ error: "Appointment type not found" }, { status: 404 });
+    }
+
+    // customData 유효성 검사
+    const customFieldsValidation = validateCustomData(
+      appointmentType.customFields as CustomField[] | null,
+      customData
+    );
+    if (!customFieldsValidation.valid) {
+      return NextResponse.json({ error: customFieldsValidation.error }, { status: 400 });
+    }
+
+    // Calculate end time
+    const bookingDuration = duration || appointmentType.duration;
+    const startDateTime = new Date(startTime);
+    const endDateTime = addMinutes(startDateTime, bookingDuration);
+
+    // Check for conflicts (optional - can be more strict)
+    const existingBooking = await prisma.booking.findFirst({
+      where: {
+        userId: user.id,
+        status: { in: ["PENDING", "CONFIRMED"] },
+        OR: [
+          {
+            startTime: { lte: startDateTime },
+            endTime: { gt: startDateTime },
+          },
+          {
+            startTime: { lt: endDateTime },
+            endTime: { gte: endDateTime },
+          },
+        ],
+      },
+    });
+
+    // Get schedule to check capacity
+    const schedule = await prisma.schedule.findFirst({
+      where: { userId: user.id, isDefault: true },
+    });
+
+    const maxCapacity = appointmentType.maxCapacity || schedule?.maxCapacity || 1;
+
+    if (existingBooking && maxCapacity === 1) {
+      return NextResponse.json(
+        { error: "This time slot is no longer available" },
+        { status: 409 }
+      );
+    }
+
+    // Create booking
+    const booking = await prisma.booking.create({
+      data: {
+        userId: user.id,
+        appointmentTypeId,
+        guestName: sanitizeString(guestName.trim()),
+        guestPhone: guestPhone.trim().replace(/[^0-9-]/g, ""),
+        guestEmail: guestEmail ? sanitizeString(guestEmail.trim()) : null,
+        guestNote: guestNote ? sanitizeString(guestNote.trim()) : null,
+        customData: customFieldsValidation.sanitized && Object.keys(customFieldsValidation.sanitized).length > 0
+          ? customFieldsValidation.sanitized
+          : null,
+        startTime: startDateTime,
+        endTime: endDateTime,
+        duration: bookingDuration,
+        status: "PENDING",
+      },
+      include: {
+        appointmentType: { select: { name: true } },
+      },
+    });
+
+    // TODO: Send confirmation request via Kakao Alimtalk
+    // This would be implemented with the Kakao Business Message API
+
+    return NextResponse.json({
+      id: booking.id,
+      status: booking.status,
+      confirmToken: booking.confirmToken,
+      message: "Booking created. Please confirm via the notification sent to your phone.",
+    });
+  } catch (error) {
+    console.error("Failed to create booking:", error);
+    return NextResponse.json({ error: "Failed to create booking" }, { status: 500 });
+  }
+}
