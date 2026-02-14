@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/db";
 import { addMinutes } from "date-fns";
+import { checkRateLimit, getClientIp, RATE_LIMITS } from "@/lib/rate-limit";
 import type { CustomField } from "@/types";
 
 // XSS 방지를 위한 문자열 sanitize
@@ -70,6 +71,12 @@ function validateCustomData(
 }
 
 export async function POST(request: Request, { params }: { params: Promise<{ slug: string }> }) {
+  const ip = getClientIp(request);
+  const { success } = checkRateLimit(`booking:${ip}`, RATE_LIMITS.bookingCreate.limit, RATE_LIMITS.bookingCreate.windowMs);
+  if (!success) {
+    return NextResponse.json({ error: "요청이 너무 많습니다. 잠시 후 다시 시도해주세요." }, { status: 429 });
+  }
+
   const { slug } = await params;
 
   try {
@@ -185,6 +192,7 @@ export async function POST(request: Request, { params }: { params: Promise<{ slu
           : undefined,
         startTime: startDateTime,
         endTime: endDateTime,
+        tokenExpiresAt: new Date(Date.now() + 24 * 60 * 60 * 1000),
         duration: bookingDuration,
         status: "PENDING",
       },

@@ -1,8 +1,15 @@
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/db";
 import { generateAvailableSlots } from "@/lib/slots";
+import { checkRateLimit, getClientIp, RATE_LIMITS } from "@/lib/rate-limit";
 
 export async function GET(request: Request, { params }: { params: Promise<{ slug: string }> }) {
+  const ip = getClientIp(request);
+  const { success } = checkRateLimit(`slots:${ip}`, RATE_LIMITS.slotQuery.limit, RATE_LIMITS.slotQuery.windowMs);
+  if (!success) {
+    return NextResponse.json({ error: "요청이 너무 많습니다. 잠시 후 다시 시도해주세요." }, { status: 429 });
+  }
+
   try {
     const { slug } = await params;
     const { searchParams } = new URL(request.url);

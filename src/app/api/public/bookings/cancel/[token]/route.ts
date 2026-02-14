@@ -1,7 +1,14 @@
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/db";
+import { checkRateLimit, getClientIp, RATE_LIMITS } from "@/lib/rate-limit";
 
 export async function POST(request: Request, { params }: { params: Promise<{ token: string }> }) {
+  const ip = getClientIp(request);
+  const { success } = checkRateLimit(`cancel:${ip}`, RATE_LIMITS.tokenAction.limit, RATE_LIMITS.tokenAction.windowMs);
+  if (!success) {
+    return NextResponse.json({ error: "요청이 너무 많습니다. 잠시 후 다시 시도해주세요." }, { status: 429 });
+  }
+
   const { token } = await params;
 
   try {
@@ -21,15 +28,19 @@ export async function POST(request: Request, { params }: { params: Promise<{ tok
     });
 
     if (!booking) {
-      return NextResponse.json({ error: "Booking not found" }, { status: 404 });
+      return NextResponse.json({ error: "예약을 찾을 수 없습니다" }, { status: 404 });
+    }
+
+    if (booking.tokenExpiresAt && booking.tokenExpiresAt < new Date()) {
+      return NextResponse.json({ error: "토큰이 만료되었습니다" }, { status: 410 });
     }
 
     if (booking.status === "CANCELLED") {
-      return NextResponse.json({ message: "Booking already cancelled" });
+      return NextResponse.json({ message: "이미 취소된 예약입니다" });
     }
 
     if (booking.status === "COMPLETED") {
-      return NextResponse.json({ error: "Cannot cancel completed booking" }, { status: 400 });
+      return NextResponse.json({ error: "완료된 예약은 취소할 수 없습니다" }, { status: 400 });
     }
 
     // Check if cancellation is allowed (based on schedule settings)

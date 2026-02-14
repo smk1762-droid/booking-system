@@ -258,8 +258,9 @@ model Booking {
   status BookingStatus @default(PENDING)
 
   // Tokens
-  confirmToken String @unique @default(cuid())
-  cancelToken  String @unique @default(cuid())
+  confirmToken   String   @unique @default(cuid())
+  cancelToken    String   @unique @default(cuid())
+  tokenExpiresAt DateTime?
 
   // Notes
   internalNote String?
