@@ -1,63 +1,25 @@
+import { redirect } from "next/navigation";
 import Link from "next/link";
+import { auth } from "@/lib/auth";
+import { prisma } from "@/lib/db";
 import { Header } from "@/components/layout";
 import { Button, Card, CardContent, Badge } from "@/components/ui";
 import { Plus, Clock, Users, Edit2 } from "lucide-react";
 import { formatDuration } from "@/lib/utils";
 
-// Mock 데이터 (개발용)
-const mockAppointmentTypes = [
-  {
-    id: "1",
-    name: "신규 입학 상담",
-    description: "신규 학생 및 학부모 대상 입학 상담입니다.",
-    duration: 30,
-    minDuration: 30,
-    maxDuration: 60,
-    maxCapacity: 1,
-    color: "#3B82F6",
-    isActive: true,
-    _count: { bookings: 12 },
-  },
-  {
-    id: "2",
-    name: "사전 테스트 (고등)",
-    description: "고등학생 대상 레벨 테스트",
-    duration: 60,
-    minDuration: null,
-    maxDuration: null,
-    maxCapacity: 5,
-    color: "#10B981",
-    isActive: true,
-    _count: { bookings: 8 },
-  },
-  {
-    id: "3",
-    name: "학부모 상담",
-    description: "재원생 학부모 상담",
-    duration: 30,
-    minDuration: null,
-    maxDuration: null,
-    maxCapacity: 1,
-    color: "#F59E0B",
-    isActive: true,
-    _count: { bookings: 5 },
-  },
-  {
-    id: "4",
-    name: "사전 테스트 (중등)",
-    description: null,
-    duration: 60,
-    minDuration: null,
-    maxDuration: null,
-    maxCapacity: 5,
-    color: "#8B5CF6",
-    isActive: false,
-    _count: { bookings: 3 },
-  },
-];
-
 export default async function AppointmentTypesPage() {
-  const appointmentTypes = mockAppointmentTypes;
+  const session = await auth();
+  if (!session?.user?.id) {
+    redirect("/login");
+  }
+
+  const appointmentTypes = await prisma.appointmentType.findMany({
+    where: { userId: session.user.id },
+    include: {
+      _count: { select: { bookings: true } },
+    },
+    orderBy: { createdAt: "desc" },
+  });
 
   return (
     <div>

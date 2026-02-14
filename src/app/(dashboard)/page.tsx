@@ -1,43 +1,61 @@
+import { redirect } from "next/navigation";
+import { auth } from "@/lib/auth";
+import { prisma } from "@/lib/db";
 import { Header } from "@/components/layout";
 import { Card, CardContent, CardHeader, CardTitle, Badge } from "@/components/ui";
 import { Calendar, CalendarCheck, Clock, Users } from "lucide-react";
 import { formatDate, formatTime } from "@/lib/utils";
-
-// Mock 데이터 (개발용)
-const mockStats = {
-  todayBookings: 3,
-  pendingBookings: 2,
-  totalBookings: 15,
-  appointmentTypes: 4,
-};
-
-const mockUpcomingBookings = [
-  {
-    id: "1",
-    guestName: "김철수",
-    startTime: new Date(Date.now() + 1000 * 60 * 60 * 2), // 2시간 후
-    status: "CONFIRMED" as const,
-    appointmentType: { name: "신규 입학 상담", color: "#3B82F6" },
-  },
-  {
-    id: "2",
-    guestName: "이영희",
-    startTime: new Date(Date.now() + 1000 * 60 * 60 * 5), // 5시간 후
-    status: "PENDING" as const,
-    appointmentType: { name: "사전 테스트 (고등)", color: "#10B981" },
-  },
-  {
-    id: "3",
-    guestName: "박민수",
-    startTime: new Date(Date.now() + 1000 * 60 * 60 * 24), // 내일
-    status: "CONFIRMED" as const,
-    appointmentType: { name: "학부모 상담", color: "#F59E0B" },
-  },
-];
+import { startOfDay, endOfDay } from "date-fns";
 
 export default async function DashboardPage() {
-  const stats = mockStats;
-  const upcomingBookings = mockUpcomingBookings;
+  const session = await auth();
+  if (!session?.user?.id) {
+    redirect("/login");
+  }
+
+  const userId = session.user.id;
+  const now = new Date();
+  const todayStart = startOfDay(now);
+  const todayEnd = endOfDay(now);
+
+  const [todayBookings, pendingBookings, totalBookings, appointmentTypeCount, upcomingBookings] =
+    await Promise.all([
+      prisma.booking.count({
+        where: {
+          userId,
+          startTime: { gte: todayStart, lte: todayEnd },
+          status: { in: ["PENDING", "CONFIRMED"] },
+        },
+      }),
+      prisma.booking.count({
+        where: { userId, status: "PENDING" },
+      }),
+      prisma.booking.count({
+        where: { userId },
+      }),
+      prisma.appointmentType.count({
+        where: { userId },
+      }),
+      prisma.booking.findMany({
+        where: {
+          userId,
+          startTime: { gte: now },
+          status: { in: ["PENDING", "CONFIRMED"] },
+        },
+        include: {
+          appointmentType: { select: { name: true, color: true } },
+        },
+        orderBy: { startTime: "asc" },
+        take: 5,
+      }),
+    ]);
+
+  const stats = {
+    todayBookings,
+    pendingBookings,
+    totalBookings,
+    appointmentTypes: appointmentTypeCount,
+  };
 
   const statusColors = {
     PENDING: "warning",
@@ -58,7 +76,7 @@ export default async function DashboardPage() {
   return (
     <div>
       <Header
-        title="안녕하세요, 테스트 사용자님"
+        title={`안녕하세요, ${session.user.name ?? "사용자"}님`}
         description="오늘의 예약 현황을 확인하세요"
       />
 
