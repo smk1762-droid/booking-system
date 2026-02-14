@@ -88,9 +88,23 @@ export async function POST(request: Request, { params }: { params: Promise<{ slu
     // Validate required fields
     if (!appointmentTypeId || !startTime || !guestName || !guestPhone) {
       return NextResponse.json(
-        { error: "Missing required fields" },
+        { error: "필수 항목이 누락되었습니다" },
         { status: 400 }
       );
+    }
+
+    // 입력 길이 제한
+    if (typeof guestName !== "string" || guestName.length > 100) {
+      return NextResponse.json({ error: "이름은 100자를 초과할 수 없습니다" }, { status: 400 });
+    }
+    if (typeof guestPhone !== "string" || guestPhone.length > 20) {
+      return NextResponse.json({ error: "연락처가 올바르지 않습니다" }, { status: 400 });
+    }
+    if (guestEmail && (typeof guestEmail !== "string" || guestEmail.length > 255)) {
+      return NextResponse.json({ error: "이메일은 255자를 초과할 수 없습니다" }, { status: 400 });
+    }
+    if (guestNote && (typeof guestNote !== "string" || guestNote.length > 1000)) {
+      return NextResponse.json({ error: "메모는 1000자를 초과할 수 없습니다" }, { status: 400 });
     }
 
     const user = await prisma.user.findUnique({
@@ -168,7 +182,7 @@ export async function POST(request: Request, { params }: { params: Promise<{ slu
         guestNote: guestNote ? sanitizeString(guestNote.trim()) : null,
         customData: customFieldsValidation.sanitized && Object.keys(customFieldsValidation.sanitized).length > 0
           ? customFieldsValidation.sanitized
-          : null,
+          : undefined,
         startTime: startDateTime,
         endTime: endDateTime,
         duration: bookingDuration,
@@ -185,11 +199,9 @@ export async function POST(request: Request, { params }: { params: Promise<{ slu
     return NextResponse.json({
       id: booking.id,
       status: booking.status,
-      confirmToken: booking.confirmToken,
-      message: "Booking created. Please confirm via the notification sent to your phone.",
+      message: "예약이 생성되었습니다. 연락처로 발송된 알림을 통해 예약을 확정해주세요.",
     });
-  } catch (error) {
-    console.error("Failed to create booking:", error);
-    return NextResponse.json({ error: "Failed to create booking" }, { status: 500 });
+  } catch {
+    return NextResponse.json({ error: "예약 생성에 실패했습니다" }, { status: 500 });
   }
 }

@@ -69,8 +69,7 @@ export async function POST(request: Request) {
     });
 
     return NextResponse.json(schedule);
-  } catch (error) {
-    console.error("Failed to create schedule:", error);
-    return NextResponse.json({ error: "Failed to create schedule" }, { status: 500 });
+  } catch {
+    return NextResponse.json({ error: "스케줄 생성에 실패했습니다" }, { status: 500 });
   }
 }

@@ -22,8 +22,8 @@ export default function BookingLinkPage() {
         const data = await response.json();
         setProfile(data);
       }
-    } catch (error) {
-      console.error("Failed to fetch profile:", error);
+    } catch {
+      // 프로필 조회 실패 시 로딩 해제
     } finally {
       setLoading(false);
     }
@@ -44,8 +44,8 @@ export default function BookingLinkPage() {
       await navigator.clipboard.writeText(bookingUrl);
       setCopied(true);
       setTimeout(() => setCopied(false), 2000);
-    } catch (error) {
-      console.error("Failed to copy:", error);
+    } catch {
+      // 클립보드 복사 실패
     }
   };
 

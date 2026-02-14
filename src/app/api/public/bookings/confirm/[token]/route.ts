@@ -41,8 +41,7 @@ export async function POST(request: Request, { params }: { params: Promise<{ tok
       status: updatedBooking.status,
       message: "Booking confirmed successfully",
     });
-  } catch (error) {
-    console.error("Failed to confirm booking:", error);
-    return NextResponse.json({ error: "Failed to confirm booking" }, { status: 500 });
+  } catch {
+    return NextResponse.json({ error: "예약 확인에 실패했습니다" }, { status: 500 });
   }
 }

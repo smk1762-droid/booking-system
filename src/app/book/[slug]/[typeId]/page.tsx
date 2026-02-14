@@ -82,8 +82,8 @@ export default function BookingSlotPage() {
           setDuration(type.duration);
         }
       }
-    } catch (error) {
-      console.error("Failed to fetch data:", error);
+    } catch {
+      // fetch 실패 시 loading 상태 해제
     } finally {
       setLoading(false);
     }
@@ -99,8 +99,8 @@ export default function BookingSlotPage() {
         const data = await res.json();
         setSlots(data);
       }
-    } catch (error) {
-      console.error("Failed to fetch slots:", error);
+    } catch {
+      // slots fetch 실패 시 loading 상태 해제
     } finally {
       setSlotsLoading(false);
     }
@@ -183,8 +183,7 @@ export default function BookingSlotPage() {
         const errorData = await response.json().catch(() => ({}));
         setSubmitError(errorData.error || "예약 신청에 실패했습니다. 다시 시도해주세요.");
       }
-    } catch (error) {
-      console.error("Failed to create booking:", error);
+    } catch {
       setSubmitError("네트워크 오류가 발생했습니다. 인터넷 연결을 확인해주세요.");
     } finally {
       setSubmitting(false);

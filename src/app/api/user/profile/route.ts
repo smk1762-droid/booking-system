@@ -39,15 +39,22 @@ export async function PATCH(request: Request) {
     const body = await request.json();
     const { businessName, slug } = body;
 
-    // Validate slug
+    if (businessName && (typeof businessName !== "string" || businessName.length > 100)) {
+      return NextResponse.json({ error: "사업장 이름은 100자를 초과할 수 없습니다" }, { status: 400 });
+    }
+
     if (slug) {
+      if (typeof slug !== "string" || !/^[a-z0-9-]+$/.test(slug) || slug.length > 50) {
+        return NextResponse.json({ error: "URL은 영소문자, 숫자, 하이픈만 사용 가능합니다 (50자 이내)" }, { status: 400 });
+      }
+
       const existingUser = await prisma.user.findFirst({
         where: { slug, NOT: { id: session.user.id } },
       });
 
       if (existingUser) {
         return NextResponse.json(
-          { error: "This URL is already taken" },
+          { error: "이미 사용 중인 URL입니다" },
           { status: 400 }
         );
       }
@@ -56,7 +63,7 @@ export async function PATCH(request: Request) {
     const user = await prisma.user.update({
       where: { id: session.user.id },
       data: {
-        businessName: businessName || null,
+        businessName: businessName?.trim() || null,
         slug: slug || null,
       },
       select: {
@@ -70,8 +77,7 @@ export async function PATCH(request: Request) {
     });
 
     return NextResponse.json(user);
-  } catch (error) {
-    console.error("Failed to update profile:", error);
-    return NextResponse.json({ error: "Failed to update profile" }, { status: 500 });
+  } catch {
+    return NextResponse.json({ error: "프로필 업데이트에 실패했습니다" }, { status: 500 });
   }
 }

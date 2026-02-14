@@ -72,8 +72,8 @@ export default function NewAppointmentTypePage() {
         router.push("/appointment-types");
         router.refresh();
       }
-    } catch (error) {
-      console.error("Failed to create appointment type:", error);
+    } catch {
+      // 생성 실패 시 로딩 해제
     } finally {
       setLoading(false);
     }

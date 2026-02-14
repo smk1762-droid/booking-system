@@ -1,75 +1,27 @@
+import { redirect } from "next/navigation";
+import { auth } from "@/lib/auth";
+import { prisma } from "@/lib/db";
 import { Header } from "@/components/layout";
 import { Card, CardContent, Badge, Button } from "@/components/ui";
 import { Calendar, Phone, Clock } from "lucide-react";
 import { format } from "date-fns";
 import { ko } from "date-fns/locale";
 
-// Mock 데이터 (개발용)
-const mockBookings = [
-  {
-    id: "1",
-    guestName: "김철수",
-    guestPhone: "010-1234-5678",
-    guestNote: "주차 가능한지 확인 부탁드립니다.",
-    startTime: new Date(),
-    duration: 30,
-    status: "CONFIRMED" as const,
-    appointmentType: { name: "신규 입학 상담", color: "#3B82F6" },
-  },
-  {
-    id: "2",
-    guestName: "이영희",
-    guestPhone: "010-2345-6789",
-    guestNote: null,
-    startTime: new Date(Date.now() + 1000 * 60 * 60 * 3),
-    duration: 60,
-    status: "PENDING" as const,
-    appointmentType: { name: "사전 테스트 (고등)", color: "#10B981" },
-  },
-  {
-    id: "3",
-    guestName: "박민수",
-    guestPhone: "010-3456-7890",
-    guestNote: "2명이 함께 방문합니다.",
-    startTime: new Date(Date.now() + 1000 * 60 * 60 * 24),
-    duration: 30,
-    status: "CONFIRMED" as const,
-    appointmentType: { name: "학부모 상담", color: "#F59E0B" },
-  },
-  {
-    id: "4",
-    guestName: "최지원",
-    guestPhone: "010-4567-8901",
-    guestNote: null,
-    startTime: new Date(Date.now() + 1000 * 60 * 60 * 48),
-    duration: 60,
-    status: "PENDING" as const,
-    appointmentType: { name: "사전 테스트 (고등)", color: "#10B981" },
-  },
-  {
-    id: "5",
-    guestName: "정하늘",
-    guestPhone: "010-5678-9012",
-    guestNote: null,
-    startTime: new Date(Date.now() - 1000 * 60 * 60 * 24),
-    duration: 30,
-    status: "COMPLETED" as const,
-    appointmentType: { name: "신규 입학 상담", color: "#3B82F6" },
-  },
-  {
-    id: "6",
-    guestName: "강서윤",
-    guestPhone: "010-6789-0123",
-    guestNote: null,
-    startTime: new Date(Date.now() - 1000 * 60 * 60 * 48),
-    duration: 30,
-    status: "CANCELLED" as const,
-    appointmentType: { name: "학부모 상담", color: "#F59E0B" },
-  },
-];
-
 export default async function BookingsPage() {
-  const bookings = mockBookings;
+  const session = await auth();
+  if (!session?.user?.id) {
+    redirect("/login");
+  }
+
+  const bookings = await prisma.booking.findMany({
+    where: { userId: session.user.id },
+    include: {
+      appointmentType: {
+        select: { name: true, color: true },
+      },
+    },
+    orderBy: { startTime: "desc" },
+  });
 
   const statusColors = {
     PENDING: "warning",
@@ -87,15 +39,13 @@ export default async function BookingsPage() {
     NO_SHOW: "노쇼",
   };
 
-  // Group bookings by date
   const groupedBookings = bookings.reduce(
     (acc, booking) => {
       const dateKey = format(booking.startTime, "yyyy-MM-dd");
-      if (!acc[dateKey]) {
-        acc[dateKey] = [];
-      }
-      acc[dateKey].push(booking);
-      return acc;
+      return {
+        ...acc,
+        [dateKey]: [...(acc[dateKey] || []), booking],
+      };
     },
     {} as Record<string, typeof bookings>
   );
@@ -121,7 +71,7 @@ export default async function BookingsPage() {
         </Card>
       ) : (
         <div className="space-y-6">
-          {Object.entries(groupedBookings)
+          {[...Object.entries(groupedBookings)]
             .sort(([a], [b]) => b.localeCompare(a))
             .map(([date, dateBookings]) => (
               <div key={date}>

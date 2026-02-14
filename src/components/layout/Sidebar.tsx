@@ -1,5 +1,6 @@
 "use client";
 
+import Image from "next/image";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { cn } from "@/lib/utils";
@@ -109,7 +110,7 @@ export function Sidebar({ user, onSignOut }: SidebarProps) {
         <div className="p-4 border-t border-gray-200">
           <div className="flex items-center gap-3">
             {user.image ? (
-              <img src={user.image} alt={user.name || ""} className="w-10 h-10 rounded-full" />
+              <Image src={user.image} alt={user.name || ""} width={40} height={40} className="w-10 h-10 rounded-full" />
             ) : (
               <div className="w-10 h-10 rounded-full bg-gray-200 flex items-center justify-center">
                 <span className="text-gray-600 font-medium">

@@ -87,9 +87,8 @@ export async function PUT(request: Request, { params }: { params: Promise<{ id: 
     });
 
     return NextResponse.json(schedule);
-  } catch (error) {
-    console.error("Failed to update schedule:", error);
-    return NextResponse.json({ error: "Failed to update schedule" }, { status: 500 });
+  } catch {
+    return NextResponse.json({ error: "스케줄 수정에 실패했습니다" }, { status: 500 });
   }
 }
 
@@ -113,8 +112,7 @@ export async function DELETE(request: Request, { params }: { params: Promise<{ i
     await prisma.schedule.delete({ where: { id } });
 
     return NextResponse.json({ success: true });
-  } catch (error) {
-    console.error("Failed to delete schedule:", error);
-    return NextResponse.json({ error: "Failed to delete schedule" }, { status: 500 });
+  } catch {
+    return NextResponse.json({ error: "스케줄 삭제에 실패했습니다" }, { status: 500 });
   }
 }

@@ -77,8 +77,8 @@ export default function SchedulesPage() {
           setSchedule(data[0]);
         }
       }
-    } catch (error) {
-      console.error("Failed to fetch schedule:", error);
+    } catch {
+      // 조회 실패 시 로딩 해제
     } finally {
       setLoading(false);
     }
@@ -104,8 +104,8 @@ export default function SchedulesPage() {
         const data = await response.json();
         setSchedule(data);
       }
-    } catch (error) {
-      console.error("Failed to save schedule:", error);
+    } catch {
+      // 저장 실패 시 로딩 해제
     } finally {
       setSaving(false);
     }

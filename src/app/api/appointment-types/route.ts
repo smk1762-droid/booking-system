@@ -25,11 +25,27 @@ export async function POST(request: Request) {
   try {
     const body = await request.json();
 
+    if (!body.name || typeof body.name !== "string" || body.name.trim().length === 0) {
+      return NextResponse.json({ error: "이름은 필수 항목입니다" }, { status: 400 });
+    }
+
+    if (!body.duration || typeof body.duration !== "number" || body.duration < 5) {
+      return NextResponse.json({ error: "유효한 시간(5분 이상)을 입력하세요" }, { status: 400 });
+    }
+
+    if (body.name.length > 100) {
+      return NextResponse.json({ error: "이름은 100자를 초과할 수 없습니다" }, { status: 400 });
+    }
+
+    if (body.description && body.description.length > 500) {
+      return NextResponse.json({ error: "설명은 500자를 초과할 수 없습니다" }, { status: 400 });
+    }
+
     const appointmentType = await prisma.appointmentType.create({
       data: {
         userId: session.user.id,
-        name: body.name,
-        description: body.description,
+        name: body.name.trim(),
+        description: body.description?.trim() || null,
         duration: body.duration,
         minDuration: body.minDuration,
         maxDuration: body.maxDuration,
@@ -42,8 +58,7 @@ export async function POST(request: Request) {
     });
 
     return NextResponse.json(appointmentType);
-  } catch (error) {
-    console.error("Failed to create appointment type:", error);
-    return NextResponse.json({ error: "Failed to create appointment type" }, { status: 500 });
+  } catch {
+    return NextResponse.json({ error: "일정 유형 생성에 실패했습니다" }, { status: 500 });
   }
 }

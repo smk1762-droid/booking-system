@@ -228,6 +228,7 @@ model AppointmentType {
 
   @@index([userId])
   @@index([isActive])
+  @@index([userId, isActive])
 }
 
 // =============================================
@@ -279,6 +280,7 @@ model Booking {
   @@index([startTime])
   @@index([confirmToken])
   @@index([cancelToken])
+  @@index([userId, status, startTime])
 }
 
 enum BookingStatus {

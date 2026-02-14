@@ -151,8 +151,7 @@ export function groupSlotsByDate(slots: AvailableSlot[]): Map<string, AvailableS
   for (const slot of slots) {
     const dateKey = format(slot.start, "yyyy-MM-dd");
     const existing = grouped.get(dateKey) || [];
-    existing.push(slot);
-    grouped.set(dateKey, existing);
+    grouped.set(dateKey, [...existing, slot]);
   }
 
   return grouped;

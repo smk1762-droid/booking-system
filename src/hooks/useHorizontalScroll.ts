@@ -39,7 +39,7 @@ export function useHorizontalScroll(
   const velocity = useRef(0);
   const lastX = useRef(0);
   const lastTime = useRef(0);
-  const animationFrame = useRef<number>();
+  const animationFrame = useRef<number | undefined>(undefined);
 
   // 스크롤 가능 여부 업데이트
   const updateScrollState = useCallback(() => {
