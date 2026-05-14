@@ -1,6 +1,8 @@
 # See https://help.github.com/articles/ignoring-files/ for more about ignoring files.
 
-# dependencies
+# =============================================
+# 의존성
+# =============================================
 /node_modules
 /.pnp
 .pnp.*
@@ -10,27 +12,39 @@
 !.yarn/releases
 !.yarn/versions
 
-# testing
-/coverage
-
-# next.js
+# =============================================
+# 빌드/테스트 산출물 (재생성 가능)
+# =============================================
 /.next/
 /out/
-
-# production
 /build
+/coverage
+*.tsbuildinfo
+next-env.d.ts
 
-# misc
-.DS_Store
-*.pem
+# =============================================
+# Prisma 생성물 (재생성 가능)
+# =============================================
+/src/generated/prisma
 
-# debug
+# =============================================
+# 로그/임시 산출물
+# =============================================
+*.log
 npm-debug.log*
 yarn-debug.log*
 yarn-error.log*
 .pnpm-debug.log*
+tmp_*.txt
+tmp_*.json
+test-output.txt
+test-run-*.txt
+coverage-*.txt
+vitest-result.json
 
-# env files
+# =============================================
+# 환경변수 — 절대 커밋 금지
+# =============================================
 .env
 .env.local
 .env.development.local
@@ -38,11 +52,34 @@ yarn-error.log*
 .env.production.local
 !.env.example
 
-# vercel
+# =============================================
+# 배포 도구
+# =============================================
 .vercel
 
-# typescript
-*.tsbuildinfo
-next-env.d.ts
+# =============================================
+# OS / 에디터
+# =============================================
+.DS_Store
+*.pem
+.idea/
+.vscode/
 
-/src/generated/prisma
+# =============================================
+# 로컬 전용 문서·메모 (커밋 제외)
+# =============================================
+# 운영 문서·작업 메모는 로컬에서만 유지한다.
+# 정말 공유해야 할 문서가 생기면 명시적으로 add 한다.
+/docs/
+/mockups/
+HANDOFF-*.md
+prd.json
+progress.txt
+CLAUDE.md
+AGENTS.md
+/.claude/
+
+# =============================================
+# 작업/연구용 워크트리
+# =============================================
+/.worktrees/
