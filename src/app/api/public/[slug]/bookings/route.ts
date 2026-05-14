@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { prisma } from "@/lib/db";
 import { addMinutes } from "date-fns";
 import { checkRateLimit, getClientIp, RATE_LIMITS } from "@/lib/rate-limit";
+import { sendBookingNotification } from "@/lib/notifications";
 import type { CustomField } from "@/types";
 
 // XSS 방지를 위한 문자열 sanitize
@@ -201,8 +202,12 @@ export async function POST(request: Request, { params }: { params: Promise<{ slu
       },
     });
 
-    // TODO: Send confirmation request via Kakao Alimtalk
-    // This would be implemented with the Kakao Business Message API
+    // 알림톡(또는 SMS) 발송 — fire-and-forget. 실패가 예약 자체를 깨면 안 됨.
+    // 결과는 BookingNotification 행(SENT/FAILED + error 컬럼)으로 추적되므로
+    // 추가 로깅 없이 catch만 잡아 unhandled rejection을 방지한다.
+    void sendBookingNotification(booking.id, "BOOKING_CREATED").catch(() => {
+      // BookingNotification.FAILED 행으로 추적됨
+    });
 
     return NextResponse.json({
       id: booking.id,
