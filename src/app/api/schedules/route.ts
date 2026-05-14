@@ -1,6 +1,10 @@
 import { NextResponse } from "next/server";
 import { auth } from "@/lib/auth";
 import { prisma } from "@/lib/db";
+import {
+  DEFAULT_TOKEN_EXPIRY_HOURS,
+  validateTokenExpiryHours,
+} from "@/lib/schedule-validation";
 
 export async function GET() {
   const session = await auth();
@@ -32,6 +36,19 @@ export async function POST(request: Request) {
   try {
     const body = await request.json();
 
+    // tokenExpiryHours: 누락 시 기본값, 명시되면 0~720만 허용
+    let tokenExpiryHours = DEFAULT_TOKEN_EXPIRY_HOURS;
+    if (body.tokenExpiryHours !== undefined && body.tokenExpiryHours !== null) {
+      const v = validateTokenExpiryHours(body.tokenExpiryHours);
+      if (v === null) {
+        return NextResponse.json(
+          { error: "링크 유효 시간은 0~720 사이의 정수여야 합니다 (0=만료 없음)" },
+          { status: 400 },
+        );
+      }
+      tokenExpiryHours = v;
+    }
+
     const schedule = await prisma.schedule.create({
       data: {
         userId: session.user.id,
@@ -46,6 +63,7 @@ export async function POST(request: Request) {
         allowCancellation: body.allowCancellation ?? true,
         cancelNotice: body.cancelNotice || 1440,
         reopenOnCancel: body.reopenOnCancel ?? true,
+        tokenExpiryHours,
         weeklyHours: {
           create: body.weeklyHours?.map((wh: { dayOfWeek: number; isEnabled: boolean; timeSlots: { startTime: string; endTime: string }[] }) => ({
             dayOfWeek: wh.dayOfWeek,

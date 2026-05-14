@@ -141,6 +141,9 @@ model Schedule {
   // Auto Confirm Setting
   autoConfirm Boolean @default(false)
 
+  // Token Expiry (확정/취소 알림톡 링크 유효 시간, 단위: 시간. 0=만료 없음, 최대 720h=30일)
+  tokenExpiryHours Int @default(24)
+
   // Relations
   weeklyHours   WeeklyHours[]
   dateOverrides DateOverride[]

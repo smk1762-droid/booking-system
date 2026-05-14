@@ -3,6 +3,10 @@ import { prisma } from "@/lib/db";
 import { addMinutes } from "date-fns";
 import { checkRateLimit, getClientIp, RATE_LIMITS } from "@/lib/rate-limit";
 import { sendBookingNotification } from "@/lib/notifications";
+import {
+  DEFAULT_TOKEN_EXPIRY_HOURS,
+  TOKEN_EXPIRY_NEVER,
+} from "@/lib/schedule-validation";
 import type { CustomField } from "@/types";
 
 // XSS 방지를 위한 문자열 sanitize
@@ -165,9 +169,10 @@ export async function POST(request: Request, { params }: { params: Promise<{ slu
       },
     });
 
-    // Get schedule to check capacity
+    // Get schedule to check capacity + 토큰 만료 정책
     const schedule = await prisma.schedule.findFirst({
       where: { userId: user.id, isDefault: true },
+      select: { maxCapacity: true, tokenExpiryHours: true },
     });
 
     const maxCapacity = appointmentType.maxCapacity || schedule?.maxCapacity || 1;
@@ -178,6 +183,15 @@ export async function POST(request: Request, { params }: { params: Promise<{ slu
         { status: 409 }
       );
     }
+
+    // 토큰 만료 시각 계산.
+    // - 사장님이 스케줄에서 설정한 시간 후로 결정.
+    // - 0 = 만료 없음(영구 링크). TOKEN_EXPIRY_NEVER로 설정해 사실상 무제한.
+    // - 스케줄이 없는 극단 케이스는 기본값 폴백.
+    const tokenExpiryHours = schedule?.tokenExpiryHours ?? DEFAULT_TOKEN_EXPIRY_HOURS;
+    const tokenExpiresAt = tokenExpiryHours === 0
+      ? TOKEN_EXPIRY_NEVER
+      : new Date(Date.now() + tokenExpiryHours * 60 * 60 * 1000);
 
     // Create booking
     const booking = await prisma.booking.create({
@@ -193,7 +207,7 @@ export async function POST(request: Request, { params }: { params: Promise<{ slu
           : undefined,
         startTime: startDateTime,
         endTime: endDateTime,
-        tokenExpiresAt: new Date(Date.now() + 24 * 60 * 60 * 1000),
+        tokenExpiresAt,
         duration: bookingDuration,
         status: "PENDING",
       },

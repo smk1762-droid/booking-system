@@ -30,6 +30,7 @@ interface Schedule {
   allowCancellation: boolean;
   cancelNotice: number;
   reopenOnCancel: boolean;
+  tokenExpiryHours: number;
   weeklyHours: WeeklyHours[];
 }
 
@@ -64,6 +65,7 @@ export default function SchedulesPage() {
     allowCancellation: true,
     cancelNotice: 1440,
     reopenOnCancel: true,
+    tokenExpiryHours: 24,
     weeklyHours: defaultWeeklyHours,
   });
 
@@ -256,6 +258,27 @@ export default function SchedulesPage() {
                 />
               </>
             )}
+
+            <Input
+              label="확정/취소 링크 유효 시간 (시간)"
+              type="number"
+              min="0"
+              max="720"
+              value={schedule.tokenExpiryHours.toString()}
+              onChange={(e) => {
+                const raw = e.target.value;
+                // 빈 입력은 기본값 24로 폴백 (0=무제한이 의도치 않게 들어가는 것 방지)
+                if (raw === "") {
+                  setSchedule({ ...schedule, tokenExpiryHours: 24 });
+                  return;
+                }
+                const parsed = parseInt(raw, 10);
+                if (Number.isNaN(parsed)) return;
+                const clamped = Math.max(0, Math.min(720, parsed));
+                setSchedule({ ...schedule, tokenExpiryHours: clamped });
+              }}
+              hint="예약 후 알림톡 링크가 유효한 시간. 0을 직접 입력하면 만료 없음(영구 링크), 최대 720시간(30일). 빈칸으로 두면 24시간."
+            />
           </CardContent>
         </Card>
 

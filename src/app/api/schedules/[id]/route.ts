@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { auth } from "@/lib/auth";
 import { prisma } from "@/lib/db";
+import { validateTokenExpiryHours } from "@/lib/schedule-validation";
 
 export async function GET(request: Request, { params }: { params: Promise<{ id: string }> }) {
   const session = await auth();
@@ -39,6 +40,19 @@ export async function PUT(request: Request, { params }: { params: Promise<{ id: 
   try {
     const body = await request.json();
 
+    // tokenExpiryHours가 명시된 경우에만 검증. undefined면 변경 없음.
+    let tokenExpiryHours: number | undefined;
+    if (body.tokenExpiryHours !== undefined && body.tokenExpiryHours !== null) {
+      const v = validateTokenExpiryHours(body.tokenExpiryHours);
+      if (v === null) {
+        return NextResponse.json(
+          { error: "링크 유효 시간은 0~720 사이의 정수여야 합니다 (0=만료 없음)" },
+          { status: 400 },
+        );
+      }
+      tokenExpiryHours = v;
+    }
+
     // Verify ownership
     const existing = await prisma.schedule.findFirst({
       where: { id, userId: session.user.id },
@@ -64,6 +78,7 @@ export async function PUT(request: Request, { params }: { params: Promise<{ id: 
         allowCancellation: body.allowCancellation,
         cancelNotice: body.cancelNotice,
         reopenOnCancel: body.reopenOnCancel,
+        ...(tokenExpiryHours !== undefined && { tokenExpiryHours }),
         weeklyHours: {
           create: body.weeklyHours?.map((wh: { dayOfWeek: number; isEnabled: boolean; timeSlots: { startTime: string; endTime: string }[] }) => ({
             dayOfWeek: wh.dayOfWeek,
